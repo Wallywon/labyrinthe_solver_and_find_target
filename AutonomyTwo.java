@@ -82,17 +82,18 @@ public class AutonomyTwo extends Robot {
     initLocalisation();
 
     // Constantes
-    final double SEUIL_OBSTACLE_FRONT = 100.0;
-    final double SEUIL_MUR_GAUCHE = 90.0;
+    final double SEUIL_OBSTACLE_FRONT = 110.0;
+    final double SEUIL_MUR_GAUCHE = 105.0;
     final double VITESSE = 40.0;
 
     // Variables d'état du robot
     enum State {
         AVANCE_LIBRE,
         TOURNE_DROITE,
-        SUIT_MUR
+        SUIT_MUR,
+		TOURNE_GAUCHE
     }
-
+	int angle = 0;
     double[] psValues = {0, 0, 0, 0, 0, 0, 0, 0}; // récupère valeurs capteurs infra du robot
     State state = State.AVANCE_LIBRE;
     boolean premierObstacle = false; // utilisé phase d'init ou on avance jusqu'au premier obstacle
@@ -134,20 +135,42 @@ public class AutonomyTwo extends Robot {
                 move(VITESSE, -VITESSE);
 
                 if (!obstacleDevant && murAGauche) {
-                    state = State.SUIT_MUR;
-                    System.out.println("État: SUIT_MUR");
+                    if(angle==0){
+						state=State.AVANCE_LIBRE;
+					}
+					else{state = State.SUIT_MUR;}
+					angle=angle+1;
+                    System.out.println("État: SUIT_MUR angle="+angle);
+                }
+                break;
+			case TOURNE_GAUCHE:
+                move(VITESSE*0.2, VITESSE*0.7);
+
+                if (!obstacleDevant && murAGauche) {
+					if(angle==0){
+						state=State.AVANCE_LIBRE;
+					}
+					else{state = State.SUIT_MUR;}
+
+					angle=angle-1;
+                    System.out.println("État: SUIT_MUR, angle ="+angle);
                 }
                 break;
 
 			//Si Suit_mur, on tourne légèrement à gauche ou a droite pour rester axer avec le mur + si obstacle devant on tourne à droite
             case SUIT_MUR:
+				System.out.println(psValues[5]);
                 if (obstacleDevant) {
                     state = State.TOURNE_DROITE;
                     System.out.println("État: TOURNE_DROITE");
                 } else if (!murAGauche) {
                     // Plus de mur à gauche : tourne légèrement à gauche
-                    move(VITESSE * 0.5, VITESSE);
-                } else if (psValues[5] > 120) {
+                    move(VITESSE * 0.5, VITESSE*1);
+					if(psValues[5]<70 && psValues[6]<70){
+						state = State.TOURNE_GAUCHE;
+						System.out.println("ETAT:TOURNE A GAUCHE");
+					}
+                } else if (psValues[5] > 130) {
                     // Mur trop proche : tourne légèrement à droite
                     move(VITESSE, VITESSE * 0.5);
                 } else {
