@@ -91,15 +91,20 @@ public class AutonomyTwo extends Robot {
         AVANCE_LIBRE,
         TOURNE_DROITE,
         SUIT_MUR,
-		TOURNE_GAUCHE
+		TOURNE_GAUCHE,
+		DIRECTION_CIBLE
     }
 	int angle = 0;
+
+	//variable permettant le calcul du repositionnement quand on suit le mur
     double[] psValues = {0, 0, 0, 0, 0, 0, 0, 0}; // récupère valeurs capteurs infra du robot
     State state = State.AVANCE_LIBRE;
     boolean premierObstacle = false; // utilisé phase d'init ou on avance jusqu'au premier obstacle
 
     while (step(timeStep) != -1) {
         psValues = readDistanceSensorValues();
+		List<CameraRecognitionObject> detected = cameraDetection();
+        CameraRecognitionObject cible = targetDetected(detected);
 
         // Détection en se basant sur les 2 capteurs à l'avant du robot
         boolean obstacleDevant = psValues[0] > SEUIL_OBSTACLE_FRONT ||
@@ -110,7 +115,10 @@ public class AutonomyTwo extends Robot {
 
         // Phase init, avance jusqu'au premier obstacle
         if (!premierObstacle) {
-            if (!obstacleDevant) {
+			if (cible != null) {
+				//objectif détecté
+				state = State.DIRECTION_CIBLE;
+			}else if (!obstacleDevant) {
                 move(VITESSE, VITESSE);
             } else {
                 premierObstacle = true;
@@ -122,7 +130,10 @@ public class AutonomyTwo extends Robot {
         switch (state) {
 			//Si avance libre : on avance jusqu'au premier obstacle en face de soit puis on passe en état tourne à droite
             case AVANCE_LIBRE:
-                if (obstacleDevant) {
+				if (cible != null) {
+					//objectif détecté
+					state = State.DIRECTION_CIBLE;
+				}else if (obstacleDevant) {
                     state = State.TOURNE_DROITE;
                     System.out.println("État: TOURNE_DROITE");
                 } else {
@@ -133,7 +144,10 @@ public class AutonomyTwo extends Robot {
 			// Si tourne a droite : on tourne jusqu'a ce qu'il n'y ait pas d'obstacle devant et qu'on capte bien le mur à gauche
             case TOURNE_DROITE:
                 move(VITESSE, -VITESSE);
-
+				if (cible != null) {
+					//objectif détecté
+					state = State.DIRECTION_CIBLE;
+				}
                 if (!obstacleDevant && murAGauche) {
                     if(angle==0){
 						state=State.AVANCE_LIBRE;
@@ -144,9 +158,12 @@ public class AutonomyTwo extends Robot {
                 }
                 break;
 			case TOURNE_GAUCHE:
-                move(VITESSE*0.2, VITESSE*0.7);
-
-                if (!obstacleDevant && murAGauche) {
+                move(VITESSE*0.3, VITESSE*0.7);
+				if (cible != null) {
+					//objectif détecté
+					state = State.DIRECTION_CIBLE;
+				}
+                if ( murAGauche) {
 					if(angle==0){
 						state=State.AVANCE_LIBRE;
 					}
@@ -155,29 +172,54 @@ public class AutonomyTwo extends Robot {
 					angle=angle-1;
                     System.out.println("État: SUIT_MUR, angle ="+angle);
                 }
+				if(obstacleDevant){
+					angle=angle-2;//Pour compenser quand on tourne trop ( cf mur trop fin), j'utilise tourne à droite par facilité mais l'angle de tourne à droite
+					state=State.TOURNE_DROITE;
+				}
                 break;
 
 			//Si Suit_mur, on tourne légèrement à gauche ou a droite pour rester axer avec le mur + si obstacle devant on tourne à droite
             case SUIT_MUR:
-				System.out.println(psValues[5]);
-                if (obstacleDevant) {
+				if (cible != null) {
+					//objectif détecté
+					state = State.DIRECTION_CIBLE;
+				}else if (obstacleDevant) {
                     state = State.TOURNE_DROITE;
                     System.out.println("État: TOURNE_DROITE");
-                } else if (!murAGauche) {
+                } else if (!murAGauche && !obstacleDevant) {
                     // Plus de mur à gauche : tourne légèrement à gauche
-                    move(VITESSE * 0.5, VITESSE*1);
+					if(psValues[5]<115){
+						move(VITESSE * 0.7, VITESSE*1);
+					}
+					else{move(VITESSE * 0.5, VITESSE*0.9);}
+
 					if(psValues[5]<70 && psValues[6]<70){
 						state = State.TOURNE_GAUCHE;
 						System.out.println("ETAT:TOURNE A GAUCHE");
 					}
                 } else if (psValues[5] > 130) {
                     // Mur trop proche : tourne légèrement à droite
-                    move(VITESSE, VITESSE * 0.5);
-                } else {
+                    move(VITESSE*0.9, VITESSE * 0.75);
+                } else if(psValues[5] > 120){
+					move(VITESSE*1, VITESSE * 0.9);
+				}
+				 else {
                     // Distance correcte : avance droit
                     move(VITESSE, VITESSE);
                 }
                 break;
+			case DIRECTION_CIBLE:
+			//aller vers la cible jusqu'à obstacle puis arreter les moteurs puis quitter le while
+			if(cible != null||psValues[0]>120 ||psValues[7]>120){
+				System.out.println("CIBLE DROIT DEVANT");
+				move(VITESSE,VITESSE);
+			}else{
+				move(0.0,0.0);
+				System.out.println("CIBLE Atteinte");
+			}
+
+
+			break;
         }
     }
 }
