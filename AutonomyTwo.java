@@ -186,21 +186,18 @@ public class AutonomyTwo extends Robot {
 				}else if (obstacleDevant) {
                     state = State.TOURNE_DROITE;
                     System.out.println("État: TOURNE_DROITE");
-                } else if (!murAGauche && !obstacleDevant) {
-                    // Plus de mur à gauche : tourne légèrement à gauche
-					if(psValues[5]<115){
-						move(VITESSE * 0.7, VITESSE*1);
-					}
-					else{move(VITESSE * 0.5, VITESSE*0.9);}
-
-					if(psValues[5]<70 && psValues[6]<70){
-						state = State.TOURNE_GAUCHE;
-						System.out.println("ETAT:TOURNE A GAUCHE");
-					}
-                } else if (psValues[5] > 130) {
+                } else if (!murAGauche && !obstacleDevant && psValues[5]<70 && psValues[6]<70) {
+					state = State.TOURNE_GAUCHE;
+					System.out.println("ETAT:TOURNE A GAUCHE");
+                } else if(psValues[5]<120){
+					move(VITESSE * 0.7, VITESSE*1);
+				}else if(psValues[5]<110){
+					move(VITESSE * 0.5, VITESSE*0.9);
+				}
+				else if (psValues[5] > 140) {
                     // Mur trop proche : tourne légèrement à droite
-                    move(VITESSE*0.9, VITESSE * 0.75);
-                } else if(psValues[5] > 120){
+                    move(VITESSE*0.9, VITESSE * 0.85);
+                } else if(psValues[5] > 130){
 					move(VITESSE*1, VITESSE * 0.9);
 				}
 				 else {
@@ -210,7 +207,7 @@ public class AutonomyTwo extends Robot {
                 break;
 			case DIRECTION_CIBLE:
 			//aller vers la cible jusqu'à obstacle puis arreter les moteurs puis quitter le while
-			if(cible != null||psValues[0]>120 ||psValues[7]>120){
+			if(cible != null|| !obstacleDevant){
 				System.out.println("CIBLE DROIT DEVANT");
 				move(VITESSE,VITESSE);
 			}else{
