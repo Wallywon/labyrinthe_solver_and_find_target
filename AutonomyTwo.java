@@ -94,14 +94,18 @@ public class AutonomyTwo extends Robot {
 		TOURNE_GAUCHE,
 		DIRECTION_CIBLE
     }
-	int angle = 0;
+
+	int angle = 0; //nombre de tour à gauche /droite réalisé
+	boolean fin = false; // permet d'arrêter la simulation
 
 	//variable permettant le calcul du repositionnement quand on suit le mur
     double[] psValues = {0, 0, 0, 0, 0, 0, 0, 0}; // récupère valeurs capteurs infra du robot
+
     State state = State.AVANCE_LIBRE;
     boolean premierObstacle = false; // utilisé phase d'init ou on avance jusqu'au premier obstacle
 
-    while (step(timeStep) != -1) {
+    while (step(timeStep) != -1 && fin==false) {
+		//perception capteur et caméra
         psValues = readDistanceSensorValues();
 		List<CameraRecognitionObject> detected = cameraDetection();
         CameraRecognitionObject cible = targetDetected(detected);
@@ -115,108 +119,150 @@ public class AutonomyTwo extends Robot {
 
         // Phase init, avance jusqu'au premier obstacle
         if (!premierObstacle) {
+			//si cible vu, aller vers la cible
 			if (cible != null) {
 				//objectif détecté
 				state = State.DIRECTION_CIBLE;
-			}else if (!obstacleDevant) {
+			}else if (!obstacleDevant) {  //sinon, avancer
                 move(VITESSE, VITESSE);
-            } else {
+            } else {                      //si premier obstacle atteint, tourner à droite
                 premierObstacle = true;
                 state = State.TOURNE_DROITE; // on tourne à droite au premier obstacle
                 System.out.println("Premier obstacle trouvé, État: TOURNE_DROITE");
             }
+			//fin de la phase d'initilisation, on ne repassera plus jamais dedans
         }
+
+
 		//action en fonction de l'état
         switch (state) {
-			//Si avance libre : on avance jusqu'au premier obstacle en face de soit puis on passe en état tourne à droite
+			//Si ETAT = avance libre : on avance jusqu'au premier obstacle en face de soit puis on passe en état tourne à droite
             case AVANCE_LIBRE:
+				//Si voit la cible, aller vers la cible
 				if (cible != null) {
 					//objectif détecté
 					state = State.DIRECTION_CIBLE;
-				}else if (obstacleDevant) {
+				}else if (obstacleDevant) {        //Si obstacle en face, tourner à droite
                     state = State.TOURNE_DROITE;
                     System.out.println("État: TOURNE_DROITE");
-                } else {
+                } else {                           //Sinon avancer tout droit
                     move(VITESSE, VITESSE);
                 }
                 break;
 
-			// Si tourne a droite : on tourne jusqu'a ce qu'il n'y ait pas d'obstacle devant et qu'on capte bien le mur à gauche
+
+			// Si ETAT = tourne a droite : on tourne jusqu'a ce qu'il n'y ait pas d'obstacle devant et qu'on capte bien le mur à gauche
             case TOURNE_DROITE:
-                move(VITESSE, -VITESSE);
+                move(VITESSE, -VITESSE);   //tourne sur lui même
 				if (cible != null) {
-					//objectif détecté
+					//Si voit la cible, aller vers la cible
 					state = State.DIRECTION_CIBLE;
 				}
                 if (!obstacleDevant && murAGauche) {
+					//si pas d'obstacle devant et un mur à gauche, changement d'etat
                     if(angle==0){
-						state=State.AVANCE_LIBRE;
+						state=State.AVANCE_LIBRE;  // si angle 0 on passe en ETAT avance libre ( ne suit pas le mur)
 					}
-					else{state = State.SUIT_MUR;}
-					angle=angle+1;
+					else{state = State.SUIT_MUR;}   // sinon passe en ETAT suit mur
+					angle=angle+1;    //On a tourné à droite donc angle prend +1
+
                     System.out.println("État: SUIT_MUR angle="+angle);
                 }
                 break;
+
+
+			// Si ETAT = tourne a gauche : on tourne jusqu'à ce qu'il y ait un mur à gauche
 			case TOURNE_GAUCHE:
-                move(VITESSE*0.3, VITESSE*0.7);
+                move(VITESSE*0.3, VITESSE*0.7);  //fait un arc de cercle pour bien atteindre le prochain mur
 				if (cible != null) {
-					//objectif détecté
+					//Si voit la cible, aller vers la cible
 					state = State.DIRECTION_CIBLE;
 				}
-                if ( murAGauche) {
-					if(angle==0){
+                if (murAGauche) {
+					//si mur à gauche on change d'ETAT
+					if(angle==0){ // si angle à 0 on passe en avance libre
 						state=State.AVANCE_LIBRE;
 					}
-					else{state = State.SUIT_MUR;}
+					else{state = State.SUIT_MUR;}  // sinon on suit le mur à gauche
 
-					angle=angle-1;
+					angle=angle-1;   //angle prend -1
                     System.out.println("État: SUIT_MUR, angle ="+angle);
                 }
+				//Cette partie de l'état "tourne gauche" ne sert que dans un cas précis, quand le mur est trop fin et que l'on fait une sorte de 180° vers la gauche.
+				//Dans ce cas précis, dûe aux vitesse de moteur défini, on arrive en face du mur que l'on doit suivre au lieu de l'avoir sur notre gauche ( comme prévu dans un tour à 90°)
+				//Pour palier cela, si nous avons un mur en face on lance la fonction tourne droite qui permet uniquement de se redresser et continuer l'algorithme.
+				//On fait un angle =angle -3 pour compter : le premier virage à 90, le deuxième virage à 90 ET compenser le +1 que va donner l'état Tourne à droite
 				if(obstacleDevant){
-					angle=angle-2;//Pour compenser quand on tourne trop ( cf mur trop fin), j'utilise tourne à droite par facilité mais l'angle de tourne à droite
+					angle=angle-3;
 					state=State.TOURNE_DROITE;
 				}
                 break;
 
-			//Si Suit_mur, on tourne légèrement à gauche ou a droite pour rester axer avec le mur + si obstacle devant on tourne à droite
+			//Si ETAT = Suit le mur, on tourne légèrement à gauche ou a droite pour rester axer avec le mur + si obstacle devant on tourne à droite et si plus de mur à gauche on tourne à gauche
             case SUIT_MUR:
 				if (cible != null) {
-					//objectif détecté
+
+					//Si voit la cible, aller vers la cible
 					state = State.DIRECTION_CIBLE;
+
 				}else if (obstacleDevant) {
+
+					//Si il y a un obstacle devant, on tourne à droite
                     state = State.TOURNE_DROITE;
                     System.out.println("État: TOURNE_DROITE");
+
                 } else if (!murAGauche && !obstacleDevant && psValues[5]<70 && psValues[6]<70) {
+
+					//Si il n'y a pas de mur à gauche, qu'il est vraiment loin ETqu'il n'y a pas d'obstacle devant, alors on tourne à gauche
 					state = State.TOURNE_GAUCHE;
 					System.out.println("ETAT:TOURNE A GAUCHE");
-                } else if(psValues[5]<120){
-					move(VITESSE * 0.7, VITESSE*1);
-				}else if(psValues[5]<110){
-					move(VITESSE * 0.5, VITESSE*0.9);
-				}
-				else if (psValues[5] > 140) {
-                    // Mur trop proche : tourne légèrement à droite
-                    move(VITESSE*0.9, VITESSE * 0.85);
-                } else if(psValues[5] > 130){
-					move(VITESSE*1, VITESSE * 0.9);
-				}
+
+                }
+				/*Début des conditions de redrèssement du robot pour qu'il reste proche du mur */
+					else if(psValues[5]<130){
+
+						move(VITESSE * 0.6, VITESSE*1);
+
+					}else if(psValues[5]<110){
+
+						move(VITESSE * 0.4, VITESSE*0.9);
+
+					}
+					else if (psValues[5] > 140) {
+
+						// Mur trop proche : tourne légèrement à droite
+						move(VITESSE*1, VITESSE * 0.8);
+
+					} else if(psValues[5] > 130){
+
+						move(VITESSE*1, VITESSE * 0.9);
+					}
+				/*Fin des conditions de redrèssement du robot pour qu'il reste proche du mur */
+
 				 else {
-                    // Distance correcte : avance droit
+                    // Si aucune des conditions n'est rempli, on avance tout droit
                     move(VITESSE, VITESSE);
                 }
                 break;
+
+
+			//Si ETAT = Direction CIble, on va vers la cible jusqu'à ce qu'on ne puisse plus avancer où qu'on ne la voit plus
 			case DIRECTION_CIBLE:
 			//aller vers la cible jusqu'à obstacle puis arreter les moteurs puis quitter le while
-			if(cible != null|| !obstacleDevant){
+			if(cible != null || !obstacleDevant){
+
+				//Si cible vue et pas d'obstacle devant alors on avance droit devant nous
 				System.out.println("CIBLE DROIT DEVANT");
 				move(VITESSE,VITESSE);
 			}else{
+
+				//Sinon on arrête tout et on met à jour la variable fin qui permet d'arrêter le programme
 				move(0.0,0.0);
+				fin=true;
 				System.out.println("CIBLE Atteinte");
 			}
-
-
 			break;
+
         }
     }
 }
